@@ -30,11 +30,6 @@ const bool cmp_string(const char *str1, const char *str2) {
   return false;
 }
 
-void command_not_found(char *arg) {
-  printf("Command not found: %s", arg);
-  exit(-1);
-}
-
 // Exit if the [value] is NULL with an message
 void assert_not_null(const void *value, const char *msg) {
   if (value == NULL) {
