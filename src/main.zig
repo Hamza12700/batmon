@@ -3,6 +3,10 @@ const heap = std.heap;
 const fs = std.fs;
 const posix = std.posix;
 const io = std.io;
+const mem = std.mem;
+
+const BAT_CAPASCITY = "/sys/class/power_supply/BAT0/capacity";
+const BAT_STATUS = "/sys/class/power_supply/BAT0/status";
 
 pub fn main() !void {
   const stdout = io.getStdOut().writer();
@@ -17,8 +21,44 @@ pub fn main() !void {
     _ = args.skip();
 
     while (args.next()) |arg| {
-      // TODO: add command for checking the battery status
-      std.debug.print("{s}\n", .{arg});
+      if (mem.eql(u8, arg, "s") or mem.eql(u8, arg, "status")) {
+        const battery_cap_file = fs.openFileAbsolute(BAT_CAPASCITY, .{}) catch |err| {
+          if (err == error.FileNotFound) {
+            std.debug.print("Failed to open battery capascity file: {s}\n", .{BAT_CAPASCITY});
+            std.debug.print("Error: {any}\n", .{err});
+            posix.exit(1);
+          } else {
+            std.debug.print("Unexpected error occur when reading the battery capascity file: {s}\n", .{BAT_CAPASCITY});
+            std.debug.print("Error: {any}\n", .{err});
+            posix.exit(1);
+          }
+        };
+
+        const battery_status_file = fs.openFileAbsolute(BAT_STATUS, .{}) catch |err| {
+          if (err == error.FileNotFound) {
+            std.debug.print("Failed to open battery capascity file: {s}\n", .{BAT_STATUS});
+            std.debug.print("Error: {any}\n", .{err});
+            posix.exit(1);
+          } else {
+            std.debug.print("Unexpected error occur when reading the battery capascity file: {s}\n", .{BAT_STATUS});
+            std.debug.print("Error: {any}\n", .{err});
+            posix.exit(1);
+          }
+        };
+
+        var capascity_buf: [4]u8 = undefined;
+        var status_buf: [12]u8 = undefined;
+
+        _ = try battery_cap_file.read(&capascity_buf);
+        _ = try battery_status_file.read(&status_buf);
+
+        try stdout.print("Battery Capascity: {s}", .{capascity_buf});
+        try stdout.print("Battery Status: {s}", .{status_buf});
+        return;
+      }
+
+      std.debug.print("Command not found: {s}\n", .{arg});
+      posix.exit(1);
     }
     return;
   }
