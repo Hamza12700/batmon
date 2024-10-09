@@ -31,7 +31,7 @@ pub fn main() !void {
     posix.exit(1);
   };
 
-  var capascity_buf: [4]u8 = undefined;
+  var capascity_buf: [3]u8 = undefined;
   var status_buf: [12]u8 = undefined;
 
   var args = std.process.args();
@@ -59,13 +59,12 @@ pub fn main() !void {
   var arena_alloc = heap.ArenaAllocator.init(heap.page_allocator);
   defer arena_alloc.deinit();
   const alloc = arena_alloc.allocator();
-
   var config: ?Config = undefined;
 
   const config_path = try fmt.allocPrint(alloc, "{s}/batmon.ini", .{home_env});
   const config_file = fs.openFileAbsolute(config_path, .{ .mode = .read_write }) catch |err| switch (err) {
     error.FileNotFound => blk: {
-      try stdout.print("Creating config file at: %s\n", .{});
+      try stdout.print("Creating config file at: {s}\n", .{config_path});
       config.?.defualt();
 
       break :blk try writeConfig(config_path);
@@ -86,16 +85,15 @@ pub fn main() !void {
   while (true) {
     _ = try readFileAbsolute(BAT_CAPASCITY).read(&capascity_buf);
     _ = try readFileAbsolute(BAT_STATUS).read(&status_buf);
-    const trim_capascity_buf = mem.trimRight(u8, &capascity_buf, "\n");
 
-    const capacity = fmt.parseUnsigned(u8, trim_capascity_buf, 10) catch |err| {
-      std.debug.print("Error parsing battery capascity value to unsigned int: {s}\n", .{capascity_buf});
+    const capacity = fmt.parseUnsigned(u8, mem.trimRight(u8, &capascity_buf, "\n"), 10) catch |err| {
+      std.debug.print("Error parsing battery capascity value into an unsigned int: {s}\n", .{capascity_buf});
       std.debug.print("{any}\n", .{err});
       posix.exit(1);
     };
 
     try stdout.print("{d}\n", .{capacity});
-    std.time.sleep(10000);
+    posix.nanosleep(1, 0);
   }
 }
 
