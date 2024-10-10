@@ -1,4 +1,5 @@
 const std = @import("std");
+const assert = @import("./assert.zig");
 const heap = std.heap;
 const fs = std.fs;
 const posix = std.posix;
@@ -59,26 +60,39 @@ pub fn main() !void {
   var arena_alloc = heap.ArenaAllocator.init(heap.page_allocator);
   defer arena_alloc.deinit();
   const alloc = arena_alloc.allocator();
-  var config: ?Config = undefined;
+  var config = Config{
+    .ticker = 0,
+    .mid = 0,
+    .half = 0,
+    .low = 0
+  };
 
   const config_path = try fmt.allocPrint(alloc, "{s}/batmon.ini", .{home_env});
   const config_file = fs.openFileAbsolute(config_path, .{ .mode = .read_write }) catch |err| switch (err) {
     error.FileNotFound => blk: {
       try stdout.print("Creating config file at: {s}\n", .{config_path});
-      config.?.defualt();
+      config.defualt();
 
       break :blk try writeConfig(config_path);
     },
     else => {
-      std.debug.print("Unexpected error occur when reading the config file: {s}\n", .{config_path});
-      std.debug.print("Error: {any}\n", .{err});
-      posix.exit(1);
+      assert.NoErr(err, "Unexpected error occur when reading the config file at `$HOME/batmon.ini`");
+      return;
     }
   };
 
-  if (config == null) {
-    // TODO: parse the config file
-    @panic("parse the config file");
+  if (config.ticker == 0) {
+    const end_pos = try config_file.getEndPos();
+    const config_contents = config_file.readToEndAlloc(alloc, end_pos) catch |err| {
+      assert.NoErr(err, "Failed to read config file into a heap allocated buffer");
+      return;
+    };
+
+    var lines = mem.splitAny(u8, config_contents, "\n");
+    while (lines.next()) |line| {
+      std.debug.print("{s}", .{line});
+    }
+    return;
   }
   config_file.close();
 
@@ -87,9 +101,8 @@ pub fn main() !void {
     _ = try readFileAbsolute(BAT_STATUS).read(&status_buf);
 
     const capacity = fmt.parseUnsigned(u8, mem.trimRight(u8, &capascity_buf, "\n"), 10) catch |err| {
-      std.debug.print("Error parsing battery capascity value into an unsigned int: {s}\n", .{capascity_buf});
-      std.debug.print("{any}\n", .{err});
-      posix.exit(1);
+      assert.NoErr(err, "Error parsing battery capascity value into an unsigned int");
+      return;
     };
 
     try stdout.print("{d}\n", .{capacity});
@@ -132,12 +145,5 @@ fn writeConfig(path: []const u8) !fs.File {
   try file.writeAll("# Time to Tick every x amount of seconds\n");
   try file.writeAll("Ticks = 10s");
 
-  const stdout = io.getStdOut().writer();
-  try stdout.print("\nHalf   = 50\n", .{});
-  try stdout.print("Mid    = 25\n", .{});
-  try stdout.print("Low    = 10\n", .{});
-  try stdout.print("Ticks  = 10s\n", .{});
-
-  try stdout.print("You can change the config optins here: {s}\n", .{path});
   return file;
 }
